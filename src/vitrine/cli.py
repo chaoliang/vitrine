@@ -127,13 +127,23 @@ def _bed(args) -> dict:
 
 
 def cmd_check(args) -> dict:
-    """Validate a config without touching a GPU: schema, outfit clash, shots."""
-    from .build import plan
+    """Validate a config without touching a GPU: schema, outfit clash, shots.
+
+    Deliberately does not require the reference images to exist. A config can be
+    wrong and its assets can be absent, and those are different problems with
+    different fixes; conflating them made this command fail on a fresh clone,
+    which is the first thing the README asks you to run.
+    """
+    from .build import missing_assets, plan
     st = load(args.backend or "null")
     cfg = Config.load(args.config)
-    shots = plan(st, cfg)
+    shots = plan(st, cfg, require_assets=False)
+    absent = missing_assets(st, cfg)
     return {"episode": cfg.episode, "items": len(cfg.items),
             "shots": len(shots), "style": cfg.style,
+            "config_ok": True,
+            "assets_missing": absent,
+            "ready_to_render": not absent,
             "settings": st.describe(),
             "plan": [s.to_json() for s in shots]}
 

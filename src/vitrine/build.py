@@ -25,9 +25,16 @@ from .settings import Settings
 W, H, LEN, STEPS, FPS = 768, 1344, 124, 12, 24.0
 
 
-def _identity(cfg: Config) -> Path:
+def _identity(cfg: Config, require: bool = True) -> Path:
+    """The model's identity still.
+
+    ``require`` is False for `vitrine check`, whose job is to validate a config
+    and the shot plan it produces. Refusing to do that until the images exist
+    confuses two failures -- a config that is wrong, and assets that are merely
+    absent -- and made the first command in the README fail on a fresh clone.
+    """
     p = Path(cfg.asset_dir) / cfg.model_ref
-    if not p.is_file():
+    if not p.is_file() and require:
         raise SystemExit(
             f"model reference still not found: {p}\n"
             f"  generate one with `vitrine model-ref <config>` or point "
@@ -35,22 +42,26 @@ def _identity(cfg: Config) -> Path:
     return p
 
 
-def product_still(st: Settings, cfg: Config, item: Item) -> Path | None:
+def product_still(st: Settings, cfg: Config, item: Item,
+                  require: bool = True) -> Path | None:
     """The item's canonical still: the factory's photo, else the generated one."""
     if item.refs:
         src = Path(cfg.asset_dir) / item.refs[0]
         if not src.is_file():
-            raise SystemExit(f"{item.id}: product photo not found: {src}")
+            if require:
+                raise SystemExit(f"{item.id}: product photo not found: {src}")
+            return None
         return src
     still = st.job(cfg.episode) / "bible" / f"{item.id}.png"
     return still if still.is_file() else None
 
 
 def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
-                   carry: Path | None, seed: int) -> list[ShotSpec]:
+                   carry: Path | None, seed: int,
+                   require_assets: bool = True) -> list[ShotSpec]:
     """The two takes for one item: the dressing action, then the product."""
-    product = product_still(st, cfg, item)
-    refs = [_identity(cfg)] + [p for p in (product, carry) if p]
+    product = product_still(st, cfg, item, require_assets)
+    refs = [_identity(cfg, require_assets)] + [p for p in (product, carry) if p]
 
     item_for_prompt = item
     if product is not None and not item.refs:
@@ -69,9 +80,9 @@ def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
 
 
 def shot_for_ending(cfg: Config, wearing: str, carry: Path | None,
-                    seed: int) -> ShotSpec:
+                    seed: int, require_assets: bool = True) -> ShotSpec:
     """The closing take: identity plus continuity, no product reference."""
-    refs = [_identity(cfg)] + ([carry] if carry else [])
+    refs = [_identity(cfg, require_assets)] + ([carry] if carry else [])
     text = prompts.ending(cfg, wearing, cfg.ending.scene, cfg.ending.action,
                           carry=bool(carry))
     return ShotSpec(id="ending", prompt=text, refs=refs, seed=seed,
@@ -79,7 +90,23 @@ def shot_for_ending(cfg: Config, wearing: str, carry: Path | None,
                     note=f"closing take · {cfg.ending.scene}")
 
 
-def plan(st: Settings, cfg: Config) -> list[ShotSpec]:
+def missing_assets(st: Settings, cfg: Config) -> list[str]:
+    """Which referenced image files do not exist yet. Empty means ready to render."""
+    out = []
+    ident = Path(cfg.asset_dir) / cfg.model_ref
+    if not ident.is_file():
+        out.append(f"model_ref: {ident}  (vitrine model-ref <config>)")
+    for item in cfg.items:
+        if item.refs:
+            src = Path(cfg.asset_dir) / item.refs[0]
+            if not src.is_file():
+                out.append(f"{item.id} product photo: {src}")
+        elif not (st.job(cfg.episode) / "bible" / f"{item.id}.png").is_file():
+            out.append(f"{item.id} packshot: not generated yet  (vitrine bible <config>)")
+    return out
+
+
+def plan(st: Settings, cfg: Config, require_assets: bool = True) -> list[ShotSpec]:
     """Every shot in the episode, in render order.
 
     Order is not cosmetic: item N+1's continuity reference is a frame of item
@@ -90,9 +117,9 @@ def plan(st: Settings, cfg: Config) -> list[ShotSpec]:
     """
     shots, wearing, seed = [], "", 26100001
     for item in cfg.items:
-        shots += shots_for_item(st, cfg, item, wearing, None, seed)
+        shots += shots_for_item(st, cfg, item, wearing, None, seed, require_assets)
         seed += 2
         wearing = f"{wearing} and {item.garment}" if wearing else item.garment
     if cfg.ending:
-        shots.append(shot_for_ending(cfg, wearing, None, seed))
+        shots.append(shot_for_ending(cfg, wearing, None, seed, require_assets))
     return shots

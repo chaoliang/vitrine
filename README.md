@@ -11,9 +11,22 @@
 
 ```bash
 pip install -e .
-cp vitrine.example.toml vitrine.toml     # 填你自己的路径
-vitrine doctor                            # 看什么齐了、什么缺
-vitrine check configs/demo.json           # 不碰 GPU 的配置校验
+vitrine --backend null doctor              # 看 ffmpeg、中文字体、节拍网格齐不齐
+vitrine --backend null check configs/demo.json    # 校验配置，并列出还缺哪些素材
+
+# 不用显卡先把整条流水线跑一遍（产出带标记的占位素材，不是成片）
+vitrine --backend null model-ref configs/demo.json
+cp ~/vitrine-jobs/demo-assets/cand_1.png ~/vitrine-jobs/demo-assets/model.png
+vitrine --backend null make configs/demo.json
+```
+
+跑完你会看到交付关卡**拒绝**给占位素材打 AIGC 标识——那是设计好的，不是报错。
+
+真出片要配一个渲染后端：
+
+```bash
+cp vitrine.example.toml vitrine.toml     # 填 comfy_root / workflow_template
+vitrine doctor
 vitrine make configs/你的配置.json --producer "你的公司"
 ```
 
