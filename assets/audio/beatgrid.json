@@ -1,0 +1,9 @@
+{
+  "source": "default",
+  "note": "A plain 120 BPM grid so the pipeline runs before you have a track. Derive a real one from your own licensed music: vitrine beatgrid <audio file>",
+  "bpm": 120.0,
+  "period_s": 0.5,
+  "first_beat_s": 0.0,
+  "autocorr_confidence": null,
+  "grid_head": [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
+}

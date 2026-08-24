@@ -1,0 +1,57 @@
+{
+  "episode": "demo",
+  "series": "样例",
+  "cta": "点击下方链接",
+  "style": "mature-quiet-luxury",
+  "overlays": "chips",
+  "min_duration_s": 0,
+  "asset_dir": "~/vitrine-jobs/demo-assets",
+  "model_ref": "model.png",
+  "identity": "Lin, a poised East Asian woman in her early thirties with long straight black hair worn loose, restrained natural makeup, and the exact face, hairline, skin tone and body proportions of the reference image; a real adult woman of slender proportions, about eight and a half heads tall. She is already wearing a plain off-white fine-gauge knit top with three-quarter sleeves, tucked in.",
+  "scenes": {
+    "greige_room": "A quiet greige room with a plaster wall, a low travertine bench and one tall window; nothing on the walls.",
+    "oak_floor": "The same apartment seen from lower down: a wide oak plank floor, the foot of a linen sofa, and the window light falling long across the boards."
+  },
+  "items": [
+    {
+      "id": "dress",
+      "name": "醋酸直筒连衣裙",
+      "price": "¥ 129",
+      "garment": "a charcoal grey acetate-blend straight-cut dress with a plain round neck and elbow-length sleeves",
+      "region": "torso",
+      "enter": "above",
+      "side": null,
+      "hem": "knee",
+      "shaft": "flat",
+      "scene": "greige_room",
+      "scale": "The dress falls from her shoulders to just below the knee, skimming rather than fitted, with the shoulder seam sitting exactly at the point of her shoulder.",
+      "refs": [],
+      "specs": [],
+      "hold_s": 0,
+      "action": "she settles the shoulder seam with two fingers, then turns a quarter to camera left so the fall of the skirt reads"
+    },
+    {
+      "id": "boots",
+      "name": "牛皮踝靴",
+      "price": "¥ 259",
+      "garment": "a pair of black calf-leather ankle boots with a low block heel and a plain almond toe",
+      "region": "feet",
+      "enter": "below",
+      "side": null,
+      "hem": "none",
+      "shaft": "ankle",
+      "scene": "oak_floor",
+      "scale": "The shaft ends just above the ankle bone, a hand's width below the calf, on a block heel about four centimetres high.",
+      "refs": [],
+      "specs": [],
+      "hold_s": 0,
+      "action": "she steps forward once onto the oak boards and lets her weight settle onto the front foot"
+    }
+  ],
+  "ending": {
+    "scene": "greige_room",
+    "action": "she stands still facing the camera with the finished outfit on, one hand loose at her side",
+    "beats": 10
+  },
+  "pin": {}
+}

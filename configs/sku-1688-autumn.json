@@ -1,0 +1,89 @@
+{
+  "episode": "sku-1688-autumn",
+  "series": "秋冬通勤",
+  "cta": "",
+  "style": "mature-quiet-luxury",
+  "overlays": "none",
+  "min_duration_s": 0,
+  "asset_dir": "E:\\AI-Workspace\\assets\\sku-1688-autumn",
+  "model_ref": "model.png",
+  "identity": "Lin, a poised East Asian woman in her early thirties with long straight black hair worn loose, restrained natural makeup, and the exact face, hairline, skin tone and body proportions of the reference image; a real adult woman of slender proportions, about eight and a half heads tall. She is already wearing a plain off-white fine-gauge knit top with three-quarter sleeves, tucked in.",
+  "scenes": {
+    "greige_room": "A quiet greige room with a plaster wall, a low travertine bench and one tall window; nothing on the walls.",
+    "oak_floor": "The same apartment seen from lower down: a wide oak plank floor, the foot of a linen sofa, and the window light falling long across the boards.",
+    "window_seat": "A deep window recess with unlined linen curtains and a sliver of grey sky behind her."
+  },
+  "items": [
+    {
+      "id": "skirt",
+      "name": "醋酸羊毛高腰开叉半身裙",
+      "price": "¥ 53.99",
+      "garment": "a charcoal grey wool-blend high-waisted straight midi skirt with a centre front slit and a soft drape",
+      "region": "waist",
+      "enter": "above",
+      "side": null,
+      "hem": "midi",
+      "shaft": "flat",
+      "scene": "greige_room",
+      "scale": "The skirt sits at her natural waist and its hem falls to mid-calf, well below her knee, with a slit reaching about a hand's width above the hem.",
+      "refs": [
+        "skirt.jpg"
+      ],
+      "specs": [],
+      "hold_s": 0,
+      "action": "she smooths the skirt down over one hip with a flat palm, turns a quarter to camera left so the slit opens and closes once, and settles her weight back onto one leg"
+    },
+    {
+      "id": "boots",
+      "name": "真皮粗跟及踝短靴",
+      "price": "¥ 87",
+      "garment": "a pair of dark brown leather ankle boots with a square toe and a stacked block heel, the shaft ending just above the ankle bone",
+      "region": "feet",
+      "enter": "below",
+      "side": null,
+      "hem": "none",
+      "shaft": "ankle",
+      "scene": "oak_floor",
+      "scale": "The boot shafts end just above her ankle bone, far below the skirt hem, and the stacked heel is about 5cm.",
+      "refs": [
+        "boots.jpg"
+      ],
+      "specs": [],
+      "hold_s": 0,
+      "action": "she steps forward once onto the oak boards, lets the heel land audibly, and stands with her weight settled on one hip"
+    },
+    {
+      "id": "pearl",
+      "name": "淡水珍珠水滴锁骨链",
+      "price": "¥ 22",
+      "garment": "a very fine gold chain necklace carrying one small teardrop freshwater pearl, sitting at the base of the throat, with no other charms and no brand mark",
+      "region": "neck",
+      "enter": "above",
+      "side": null,
+      "hem": "none",
+      "shaft": "flat",
+      "scene": "window_seat",
+      "scale": "The chain is about 1mm wide and the single teardrop pearl is roughly the width of her little fingernail, sitting in the hollow at the base of her throat.",
+      "refs": [
+        "pearl.jpg"
+      ],
+      "specs": [],
+      "hold_s": 0,
+      "action": "she lifts her chin a little, touches the pearl once with one fingertip, and lets her hand fall"
+    }
+  ],
+  "ending": {
+    "scene": "greige_room",
+    "action": "she walks three unhurried steps toward the window at camera left, the skirt hem swinging and the boot heels landing on the boards, then turns back a half turn to face the lens and lets one hand rest at her side",
+    "beats": 11
+  },
+  "pin": {
+    "skirt_wide": "skirt_wide_00002_.mp4",
+    "skirt_detail": "skirt_detail_00002_.mp4",
+    "boots_wide": "boots_wide_00002_.mp4",
+    "boots_detail": "boots_detail_00002_.mp4",
+    "pearl_wide": "pearl_wide_00002_.mp4",
+    "pearl_detail": "pearl_detail_00003_.mp4",
+    "ending": "ending_00001_.mp4"
+  }
+}

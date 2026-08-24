@@ -1,0 +1,92 @@
+# -*- coding: utf-8 -*-
+"""Derive the cut's rhythm from whatever track you are licensed to use.
+
+The editor lands every cut on a beat, which needs two numbers: how long a beat
+lasts and where the first one falls. Those used to live in a JSON file copied
+out of one job directory next to an mp3 of unrecorded provenance -- fine on the
+machine that made it, a licensing problem the moment the pipeline is shared. So
+the grid is derived here from your own audio instead of shipped with someone
+else's.
+
+The method is deliberately plain: short-time energy, its positive difference as
+an onset strength, autocorrelation over a musical range of lags. It reports a
+confidence, and a low confidence is worth believing -- a track with a soft or
+rubato pulse will produce a grid that technically exists and cuts that feel
+wrong. Override `period_s` and `first_beat_s` by hand when that happens.
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+SR = 22050
+HOP = 512
+HOP_S = HOP / SR
+BPM_MIN, BPM_MAX = 60.0, 200.0
+
+
+def _pcm(ffmpeg: str, src: Path) -> "list[float]":
+    """Mono float samples at SR, via ffmpeg so any container works."""
+    r = subprocess.run(
+        [ffmpeg, "-v", "error", "-i", str(src), "-f", "f32le", "-ac", "1",
+         "-ar", str(SR), "-"],
+        capture_output=True, check=True)
+    import array
+    a = array.array("f")
+    a.frombytes(r.stdout)
+    return a
+
+
+def analyse(ffmpeg: str, src: Path) -> dict:
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise SystemExit(
+            "beat detection needs numpy (`pip install numpy`), or write the two "
+            "numbers by hand:\n"
+            '  {"period_s": 60/BPM, "first_beat_s": <seconds to the first beat>}'
+        ) from e
+
+    x = np.asarray(_pcm(ffmpeg, src), dtype=np.float32)
+    if x.size < SR:
+        raise SystemExit(f"{src} is shorter than a second of audio")
+
+    n = x.size // HOP
+    frames = x[: n * HOP].reshape(n, HOP)
+    energy = np.log1p(np.sqrt((frames ** 2).mean(axis=1)) * 1000.0)
+    onset = np.diff(energy, prepend=energy[:1])
+    onset[onset < 0] = 0.0
+    onset -= onset.mean()
+
+    lag_min = max(2, int(round((60.0 / BPM_MAX) / HOP_S)))
+    lag_max = min(n - 2, int(round((60.0 / BPM_MIN) / HOP_S)))
+    if lag_max <= lag_min:
+        raise SystemExit(f"{src} is too short to find a tempo")
+
+    ac = np.correlate(onset, onset, mode="full")[onset.size - 1:]
+    window = ac[lag_min:lag_max + 1]
+    lag = int(np.argmax(window)) + lag_min
+    confidence = float(window.max() / (np.abs(window).mean() + 1e-9)) / 10.0
+
+    period_s = lag * HOP_S
+    # phase: slide a pulse train over the envelope and keep the best offset
+    offsets = np.arange(0, lag)
+    scores = [onset[o::lag].sum() for o in offsets]
+    first_beat_s = float(int(offsets[int(np.argmax(scores))]) * HOP_S)
+
+    return {
+        "file": str(src),
+        "bpm": round(60.0 / period_s, 1),
+        "period_s": round(period_s, 4),
+        "first_beat_s": round(first_beat_s, 4),
+        "autocorr_confidence": round(min(confidence, 1.0), 3),
+        "grid_head": [round(first_beat_s + i * period_s, 3) for i in range(8)],
+    }
+
+
+def write(ffmpeg: str, src: Path, dst: Path) -> dict:
+    grid = analyse(ffmpeg, src)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(json.dumps(grid, ensure_ascii=False), encoding="utf-8")
+    return grid

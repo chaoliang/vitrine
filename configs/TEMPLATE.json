@@ -1,0 +1,60 @@
+{
+  "_readme": "复制这个文件改成你自己的。以 _ 开头的键是注释，程序会忽略。",
+
+  "episode": "brand-season-01",
+  "series": "系列名，会显示在画面左上角",
+  "cta": "整套点击下方链接",
+
+  "_asset_dir": "模特图和所有商品图都从这个目录找",
+  "asset_dir": "E:\\AI-Workspace\\assets\\brand-x",
+  "_model_ref": "模特参考图，必须是全身正面照。上半身照会让模型自己编下装和鞋",
+  "model_ref": "model.png",
+
+  "_identity": "锁脸的那句话。只锁五官/发型/肤色/身材比例，绝对不要写表情和动作——写了人就变人体模特",
+  "identity": "Lin, a bubbly young East Asian woman in her mid twenties with long straight black hair, and the exact face, hairline, skin tone and body proportions of the reference image; a real adult woman of slender model proportions, about eight and a half heads tall.",
+
+  "_min_duration_s": "成片不到这个长度，edit.py 直接判失败",
+  "min_duration_s": 25.0,
+
+  "_scenes": "每件商品指定一个。场景切换只发生在商品之间，不会在一个动作中间跳",
+  "scenes": {
+    "studio": "A bright cream-white studio with soft north light and a pale plaster arch behind her.",
+    "street": "A cool grey stone entry hall with a glass door throwing a hard diagonal of daylight."
+  },
+
+  "items": [
+    {
+      "_id": "内部用的唯一标识，会变成文件名",
+      "id": "sku001",
+      "name": "商品名（画面上的价格牌）",
+      "price": "¥ 000",
+
+      "_garment": "英文描述这件东西。别写会指向具体奢侈品的特征组合（菱格+链条+圆金扣=香奈儿）",
+      "garment": "a fitted cream ribbed knit midi dress with three-quarter sleeves",
+
+      "_region": "商品长在身体哪儿：torso / neck / feet / wrist / shoulder / waist / ear。决定特写怎么框，也决定上身那条用全身还是中景",
+      "region": "torso",
+
+      "_enter": "巨手从哪来。代码强制：feet 必须 below，torso/neck 必须 above，side 有值时必须等于 side",
+      "enter": "above",
+      "_side": "单边商品填 left 或 right，特写就落在那一侧。不是单边的填 null",
+      "side": null,
+
+      "scene": "studio",
+
+      "_scale": "必填。真实尺寸 + 怎么长在身上。这句话会原样注进上身和特写两条，不填两条会各编各的大小",
+      "scale": "The dress reaches mid-calf on her and the ribbing is roughly 4mm wide.",
+
+      "_refs": "你自己的商品白底图，1 张。给了就是硬约束，禁止模型重新设计。不给的话 bible.py 会先生成一张标准图",
+      "refs": [],
+
+      "_specs": "参数卡的内容，4 条左右最好看",
+      "specs": ["面料", "工艺", "尺码", "洗涤"],
+      "_hold_s": "参数卡停留秒数，填 0 就不出参数卡（specs 也要留空）",
+      "hold_s": 2.0,
+
+      "_action": "穿上之后她做什么。动作要大：整个身体参与、有位移或旋转。别写 slightly / small / once",
+      "action": "she spins a full turn with both arms flung out, stops facing the lens and laughs out loud"
+    }
+  ]
+}

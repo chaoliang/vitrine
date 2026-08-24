@@ -1,0 +1,32 @@
+# Copy to vitrine.toml (or ~/.config/vitrine/vitrine.toml) and edit.
+# Every key here can also be given as an environment variable: jobs_dir ->
+# VITRINE_JOBS_DIR. Environment wins over this file, this file wins over the
+# platform default.
+
+# Where jobs, takes and deliverables are written.
+jobs_dir = "~/vitrine-jobs"
+
+# Found on PATH when omitted.
+# ffmpeg  = "/opt/homebrew/bin/ffmpeg"
+# ffprobe = "/opt/homebrew/bin/ffprobe"
+
+# A CJK face is required -- price chips and spec cards render Chinese.
+# Auto-detected on macOS (PingFang), Windows (Microsoft YaHei) and Noto systems.
+# font_bold    = "C:/Windows/Fonts/msyhbd.ttc"
+# font_regular = "C:/Windows/Fonts/msyh.ttc"
+
+# The cut lands on this grid. Derive one from music you are licensed to use:
+#   vitrine beatgrid path/to/track.mp3
+# Without `bgm` the cut is silent and the report says so.
+# beatgrid = "assets/audio/beatgrid.json"
+# bgm      = "assets/audio/your-licensed-track.mp3"
+
+# ---- renderer -------------------------------------------------------------
+# "comfy_h3" renders on a local ComfyUI + MiniMax H3 install.
+# "null"     writes labelled placeholder takes: for wiring tests, never delivery.
+backend = "null"
+
+# Only needed by comfy_h3:
+# comfy_root        = "E:/AI-Workspace/apps/ComfyUI-H3"
+# workflow_template = "E:/AI-Workspace/templates/h3_ref2va.api.json"
+# still_model       = "E:/AI-Workspace/models/huggingface/flux2-klein-4b"

@@ -1,0 +1,98 @@
+# -*- coding: utf-8 -*-
+"""Config -> shot specs for one item at a time. No engine, no file staging.
+
+This used to write ComfyUI graphs directly, naming node ids in the middle of
+what is really a merchandising decision. Now it emits
+:class:`~vitrine.backends.base.ShotSpec` objects and the backend turns those
+into whatever its engine wants, so the reference logic below is stated once and
+survives a change of renderer.
+
+Reference slots, and why each exists:
+  0  the model's identity still            -- who she is
+  1  the item's canonical product still    -- so wide and detail agree on the object
+  2  the continuity frame from the last    -- so the outfit survives a set change
+     accepted take
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from . import prompts
+from .backends.base import ShotSpec
+from .schema import Config, Item
+from .settings import Settings
+
+W, H, LEN, STEPS, FPS = 768, 1344, 124, 12, 24.0
+
+
+def _identity(cfg: Config) -> Path:
+    p = Path(cfg.asset_dir) / cfg.model_ref
+    if not p.is_file():
+        raise SystemExit(
+            f"model reference still not found: {p}\n"
+            f"  generate one with `vitrine model-ref <config>` or point "
+            f"asset_dir/model_ref at an existing full-body photograph")
+    return p
+
+
+def product_still(st: Settings, cfg: Config, item: Item) -> Path | None:
+    """The item's canonical still: the factory's photo, else the generated one."""
+    if item.refs:
+        src = Path(cfg.asset_dir) / item.refs[0]
+        if not src.is_file():
+            raise SystemExit(f"{item.id}: product photo not found: {src}")
+        return src
+    still = st.job(cfg.episode) / "bible" / f"{item.id}.png"
+    return still if still.is_file() else None
+
+
+def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
+                   carry: Path | None, seed: int) -> list[ShotSpec]:
+    """The two takes for one item: the dressing action, then the product."""
+    product = product_still(st, cfg, item)
+    refs = [_identity(cfg)] + [p for p in (product, carry) if p]
+
+    item_for_prompt = item
+    if product is not None and not item.refs:
+        # the generated packshot counts as a supplied photograph for the prompt
+        item_for_prompt = Item(**{**item.__dict__, "refs": ["__bible__"]})
+
+    out = []
+    for n, (kind, text) in enumerate((
+            ("wide", prompts.wide(cfg, item_for_prompt, wearing, carry=bool(carry))),
+            ("detail", prompts.detail(cfg, item_for_prompt, wearing, carry=bool(carry))))):
+        out.append(ShotSpec(
+            id=f"{item.id}_{kind}", prompt=text, refs=list(refs), seed=seed + n,
+            width=W, height=H, frames=LEN, fps=FPS, steps=STEPS,
+            note=f"{item.name} · {item.scene} · from {item.enter}"))
+    return out
+
+
+def shot_for_ending(cfg: Config, wearing: str, carry: Path | None,
+                    seed: int) -> ShotSpec:
+    """The closing take: identity plus continuity, no product reference."""
+    refs = [_identity(cfg)] + ([carry] if carry else [])
+    text = prompts.ending(cfg, wearing, cfg.ending.scene, cfg.ending.action,
+                          carry=bool(carry))
+    return ShotSpec(id="ending", prompt=text, refs=refs, seed=seed,
+                    width=W, height=H, frames=LEN, fps=FPS, steps=STEPS,
+                    note=f"closing take · {cfg.ending.scene}")
+
+
+def plan(st: Settings, cfg: Config) -> list[ShotSpec]:
+    """Every shot in the episode, in render order.
+
+    Order is not cosmetic: item N+1's continuity reference is a frame of item
+    N's accepted take, so the loop in run.py cannot be parallelised and this
+    list cannot be reordered. The continuity paths are filled in as the run
+    proceeds, which is why this returns the plan without them and run.py
+    rebuilds each item's shots when its turn comes.
+    """
+    shots, wearing, seed = [], "", 26100001
+    for item in cfg.items:
+        shots += shots_for_item(st, cfg, item, wearing, None, seed)
+        seed += 2
+        wearing = f"{wearing} and {item.garment}" if wearing else item.garment
+    if cfg.ending:
+        shots.append(shot_for_ending(cfg, wearing, None, seed))
+    return shots

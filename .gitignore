@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+vitrine.toml
+assets/audio/*.mp3
+assets/audio/*.wav
+assets/audio/*.m4a
