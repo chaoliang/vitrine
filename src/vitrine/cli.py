@@ -116,7 +116,8 @@ def _bed(args) -> dict:
     """Loop a short track to length and write the matching grid beside it."""
     st = load(args.backend or "null")
     out = beatgrid_mod.bed(st.ffmpeg, st.ffprobe, Path(args.audio),
-                           Path(args.out), args.seconds)
+                           Path(args.out), args.seconds,
+                           bpm_floor=args.min_bpm)
     grid_path = Path(args.grid_out)
     grid_path.parent.mkdir(parents=True, exist_ok=True)
     grid_path.write_text(json.dumps(out["grid"], ensure_ascii=False),
@@ -216,8 +217,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("beatgrid", help="derive the beat grid from your own track")
     p.add_argument("audio")
     p.add_argument("-o", "--out", default="assets/audio/beatgrid.json")
+    p.add_argument("--min-bpm", type=float, default=None,
+                   help="fold the detected tempo up by octaves until it clears "
+                        "this; the edit stage prints the floor your takes need")
     p.set_defaults(fn=lambda a: beatgrid_mod.write(
-        load(a.backend or "null").ffmpeg, Path(a.audio), Path(a.out)))
+        load(a.backend or "null").ffmpeg, Path(a.audio), Path(a.out), a.min_bpm))
 
     p = sub.add_parser("bed", help="loop a short track up to length on a bar boundary")
     p.add_argument("audio")
@@ -225,6 +229,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="target length; make it a little longer than the cut")
     p.add_argument("-o", "--out", default="assets/audio/bgm.mp3")
     p.add_argument("--grid-out", default="assets/audio/beatgrid.json")
+    p.add_argument("--min-bpm", type=float, default=None,
+                   help="tempo floor; the edit stage prints the one your takes need")
     p.set_defaults(fn=lambda a: _bed(a))
 
     p = sub.add_parser("check", help="validate a config without a GPU")

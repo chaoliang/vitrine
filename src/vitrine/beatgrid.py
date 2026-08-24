@@ -38,7 +38,21 @@ def _pcm(ffmpeg: str, src: Path) -> "list[float]":
     return a
 
 
-def analyse(ffmpeg: str, src: Path) -> dict:
+def analyse(ffmpeg: str, src: Path, bpm_floor: float | None = None) -> dict:
+    """Detect the beat period, optionally folded up to clear a tempo floor.
+
+    Autocorrelation peaks at every multiple of the beat, so a 144 BPM track
+    peaks just as hard at 72 -- the bar -- and a plain argmax takes whichever is
+    larger. Three tracks generated at 138-150 BPM were all read as 60-72 here.
+
+    The fix is octave correction, not a narrower search: searching only above
+    the floor finds some subdivision of the envelope and reports it with low
+    confidence (198.8 BPM at 0.300, against 71.8 at 0.547 for the same file).
+    So the search stays wide, and when the caller states a floor -- a cut whose
+    segments have to fit inside its takes -- the winning lag is halved until it
+    clears. Halving keeps the phase and lands on a real subdivision of the grid
+    that was actually detected.
+    """
     try:
         import numpy as np
     except ImportError as e:
@@ -69,6 +83,17 @@ def analyse(ffmpeg: str, src: Path) -> dict:
     lag = int(np.argmax(window)) + lag_min
     confidence = float(window.max() / (np.abs(window).mean() + 1e-9)) / 10.0
 
+    detected_bpm = 60.0 / (lag * HOP_S)
+    folds = 0
+    while bpm_floor and 60.0 / (lag * HOP_S) < bpm_floor and lag // 2 >= lag_min:
+        lag //= 2
+        folds += 1
+    if bpm_floor and 60.0 / (lag * HOP_S) < bpm_floor:
+        raise SystemExit(
+            f"{src} reads as {detected_bpm:.1f} BPM and no doubling of it clears "
+            f"the {bpm_floor:.1f} BPM floor. Use a faster track, or shorten the "
+            f"segments that set the floor.")
+
     period_s = lag * HOP_S
     # phase: slide a pulse train over the envelope and keep the best offset
     offsets = np.arange(0, lag)
@@ -78,6 +103,8 @@ def analyse(ffmpeg: str, src: Path) -> dict:
     return {
         "file": str(src),
         "bpm": round(60.0 / period_s, 1),
+        "detected_bpm": round(detected_bpm, 1),
+        "octave_folds": folds,
         "period_s": round(period_s, 4),
         "first_beat_s": round(first_beat_s, 4),
         "autocorr_confidence": round(min(confidence, 1.0), 3),
@@ -85,8 +112,9 @@ def analyse(ffmpeg: str, src: Path) -> dict:
     }
 
 
-def write(ffmpeg: str, src: Path, dst: Path) -> dict:
-    grid = analyse(ffmpeg, src)
+def write(ffmpeg: str, src: Path, dst: Path,
+          bpm_floor: float | None = None) -> dict:
+    grid = analyse(ffmpeg, src, bpm_floor)
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(grid, ensure_ascii=False), encoding="utf-8")
     return grid
@@ -101,7 +129,8 @@ def _duration(ffprobe: str, p: Path) -> float:
 
 
 def bed(ffmpeg: str, ffprobe: str, src: Path, dst: Path, target_s: float,
-        beats_per_bar: int = 4, fade_out_s: float = 1.2) -> dict:
+        beats_per_bar: int = 4, fade_out_s: float = 1.2,
+        bpm_floor: float | None = None) -> dict:
     """Extend a short track to `target_s` by looping it on a bar boundary.
 
     Generative music models tend to end a piece when they feel like it -- the
@@ -114,7 +143,7 @@ def bed(ffmpeg: str, ffprobe: str, src: Path, dst: Path, target_s: float,
     Trimming to the bar also throws away the model's intro and outro, which is
     what you want in an underscore.
     """
-    grid = analyse(ffmpeg, src)
+    grid = analyse(ffmpeg, src, bpm_floor)
     period, first = grid["period_s"], grid["first_beat_s"]
     bar = period * beats_per_bar
     usable = _duration(ffprobe, src) - first
@@ -139,7 +168,9 @@ def bed(ffmpeg: str, ffprobe: str, src: Path, dst: Path, target_s: float,
          "-c:a", "libmp3lame", "-b:a", "320k", str(dst)], check=True)
     trimmed.unlink(missing_ok=True)
 
-    out_grid = {"source": str(src), "bpm": grid["bpm"], "period_s": period,
+    out_grid = {"source": str(src), "bpm": grid["bpm"],
+                "detected_bpm": grid["detected_bpm"],
+                "octave_folds": grid["octave_folds"], "period_s": period,
                 "first_beat_s": 0.0,
                 "autocorr_confidence": grid["autocorr_confidence"],
                 "grid_head": [round(i * period, 3) for i in range(8)]}

@@ -9,3 +9,4 @@ vitrine.toml
 assets/audio/*.mp3
 assets/audio/*.wav
 assets/audio/*.m4a
+assets/audio/beatgrid.json

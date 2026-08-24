@@ -151,6 +151,54 @@ def seg(st: Settings, src: Path, tin: float, dur: float, overlay: Path | None,
     return dst
 
 
+def check_grid_fits(st: Settings, cfg: Config, beat: float) -> None:
+    """Refuse a beat grid whose segments are longer than the takes they cut from.
+
+    The grid and the take length are independent facts, and when the music is
+    slower than the takes can carry, ffmpeg does not fail: ``-t`` past the end of
+    an input silently yields a shorter segment. The cut then runs early against
+    the music from that point on and nothing in the report says why. This is the
+    defect that a 83 BPM bed produced against 5.17-second takes -- the eleven-beat
+    ending needed 7.9 seconds of footage that did not exist.
+
+    Checked before a single frame is encoded, and the error carries the one
+    number worth acting on: the slowest tempo these takes can actually hold.
+    """
+    tol = 1.0 / FPS                       # a frame of slack
+    problems: list[str] = []
+    floors: list[float] = []
+
+    def one(stem: str, tin: float, beats: int, label: str) -> None:
+        src = find(st, cfg, stem)
+        avail = float(probe(st, src)["format"]["duration"]) - tin
+        need = beats * beat
+        floors.append(60.0 * beats / avail)
+        if need > avail + tol:
+            problems.append(
+                f"  {label}: needs {need:.2f}s ({beats} beats) but {src.name} "
+                f"only offers {avail:.2f}s after its {tin:.2f}s in-point")
+
+    for item in cfg.items:
+        one(f"{item.id}_wide",
+            item.wide_in if item.wide_in is not None else WIDE_IN,
+            WIDE_BEATS, f"{item.id} wide")
+        one(f"{item.id}_detail",
+            item.detail_in if item.detail_in is not None else DETAIL_IN,
+            DETAIL_BEATS, f"{item.id} detail")
+    if cfg.ending:
+        one("ending", 0.30, cfg.ending.beats, "ending")
+
+    if problems:
+        raise SystemExit(
+            "the beat grid is too slow for these takes:\n"
+            + "\n".join(problems)
+            + f"\n\nAt {60.0 / beat:.1f} BPM a beat is {beat:.4f}s. These takes "
+              f"need at least {max(floors):.1f} BPM.\n"
+            "  · use a faster track:  vitrine beatgrid <track>  (check the bpm it reports)\n"
+            "  · or shorten the ending in the config (`ending.beats`)\n"
+            "  · or move an in-point earlier (`wide_in` / `detail_in`)")
+
+
 def _placeholder_sources(st: Settings, sources: list[Path]) -> bool:
     """True when any take came from the null backend, so nothing downstream
     can mistake a wiring test for footage."""
@@ -170,6 +218,7 @@ def cut(st: Settings, cfg: Config) -> dict:
     work.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
     beat, phase = beat_grid(st)
+    check_grid_fits(st, cfg, beat)
 
     pieces: list[Path] = []
     ledger: list[dict] = []

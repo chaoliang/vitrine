@@ -167,7 +167,13 @@ def load(backend_override: str | None = None) -> Settings:
             "  set VITRINE_FONT_BOLD / VITRINE_FONT_REGULAR to a .ttc or .otf")
 
     audio = PROJECT_ROOT / "assets" / "audio"
-    beatgrid = Path(str(_get("beatgrid", t, audio / "beatgrid.json"))).expanduser()
+    # Your own grid if you have derived one, otherwise the neutral 120 BPM
+    # placeholder that ships with the package. The repo deliberately does not
+    # carry a grid belonging to a real track: it would name an mp3 nobody else
+    # has, at a tempo nobody else's takes can hold.
+    default_grid = (audio / "beatgrid.json" if (audio / "beatgrid.json").is_file()
+                    else audio / "beatgrid.default.json")
+    beatgrid = Path(str(_get("beatgrid", t, default_grid))).expanduser()
     bgm = Path(str(_get("bgm", t, audio / "bgm.mp3"))).expanduser()
 
     backend = backend_override or str(_get("backend", t, "")) or _auto_backend(t)
