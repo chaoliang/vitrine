@@ -27,6 +27,7 @@ from .schema import Config
 from .settings import Settings, load
 
 STAGES = ("bible", "render", "edit", "deliver")
+LEN_HINT = "the 5.17s takes this pipeline renders"
 
 
 def _out(payload: dict) -> None:
@@ -134,16 +135,28 @@ def cmd_check(args) -> dict:
     different fixes; conflating them made this command fail on a fresh clone,
     which is the first thing the README asks you to run.
     """
-    from .build import missing_assets, plan
+    from .build import missing_assets, plan, tempo_floor
+    from .edit import beat_grid
     st = load(args.backend or "null")
     cfg = Config.load(args.config)
     shots = plan(st, cfg, require_assets=False)
     absent = missing_assets(st, cfg)
+
+    floor = tempo_floor(cfg)
+    beat, _ = beat_grid(st)
+    bpm = round(60.0 / beat, 1)
+    tempo = {"grid_bpm": bpm, "needs_at_least_bpm": floor, "fits": bpm >= floor}
+    if not tempo["fits"]:
+        tempo["fix"] = (f"this grid is too slow for {LEN_HINT}: use a faster track "
+                        f"(vitrine bed <track> --min-bpm {floor}), or shorten "
+                        f"ending.beats in the config")
+
     return {"episode": cfg.episode, "items": len(cfg.items),
             "shots": len(shots), "style": cfg.style,
             "config_ok": True,
+            "tempo": tempo,
             "assets_missing": absent,
-            "ready_to_render": not absent,
+            "ready_to_render": not absent and tempo["fits"],
             "settings": st.describe(),
             "plan": [s.to_json() for s in shots]}
 

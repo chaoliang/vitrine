@@ -90,6 +90,23 @@ def shot_for_ending(cfg: Config, wearing: str, carry: Path | None,
                     note=f"closing take · {cfg.ending.scene}")
 
 
+# Cut lengths the editor derives from the beat grid, as (in-point, beats).
+# Kept here rather than in edit.py so `check` can flag a grid that cannot work
+# before anything is rendered -- the alternative is finding out at the edit
+# stage, after forty minutes of GPU.
+SEGMENTS = {"wide": (0.55, 8), "detail": (0.90, 7)}
+
+
+def tempo_floor(cfg: Config) -> float:
+    """The slowest tempo whose segments still fit inside a take, in BPM."""
+    worst = (LEN / FPS - SEGMENTS["wide"][0]) / SEGMENTS["wide"][1]
+    for tin, beats in SEGMENTS.values():
+        worst = min(worst, (LEN / FPS - tin) / beats)
+    if cfg.ending:
+        worst = min(worst, (LEN / FPS - 0.30) / cfg.ending.beats)
+    return round(60.0 / worst, 1)
+
+
 def missing_assets(st: Settings, cfg: Config) -> list[str]:
     """Which referenced image files do not exist yet. Empty means ready to render."""
     out = []

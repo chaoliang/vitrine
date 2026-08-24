@@ -1,1 +1,18 @@
-{"source": "/private/tmp/claude-501/-Users-liliang-claude-4090/7c442051-41d1-4423-8ac7-15b884011676/scratchpad/bgm-quiet-luxury.mp3", "bpm": 83.4, "period_s": 0.7198, "first_beat_s": 0.0, "autocorr_confidence": 0.578, "grid_head": [0.0, 0.72, 1.44, 2.159, 2.879, 3.599, 4.319, 5.039]}
+{
+ "source": "default",
+ "note": "中性默认网格，不属于任何音轨。144 BPM 不是随手挑的：产线的素材固定 124 帧 @24fps = 5.1667s，收尾镜头最多 11 拍、入点 0.30s，因此周期必须 ≤ 0.4424s，即 BPM ≥ 135.6。换成你自己的音轨：vitrine bed <track> --seconds 34 --min-bpm 136",
+ "bpm": 144.0,
+ "period_s": 0.4167,
+ "first_beat_s": 0.0,
+ "autocorr_confidence": null,
+ "grid_head": [
+  0.0,
+  0.417,
+  0.833,
+  1.25,
+  1.667,
+  2.083,
+  2.5,
+  2.917
+ ]
+}
