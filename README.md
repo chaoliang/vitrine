@@ -126,6 +126,18 @@ GB 45438-2025 对在中国销售的生成视频有两条独立义务：
 vitrine beatgrid path/to/your-track.mp3       # 需要 numpy
 ```
 
+**音乐模型生成的曲子往往比你要的短。** 本地 MiniMax Music 3 无论 `max_duration`
+填多少，实测都在 15–22 秒之间收尾（试过在提示词里写死 "sixty seconds / no ending"，
+反而更短）。所以短曲子要**按小节对齐循环**加长：
+
+```bash
+vitrine bed my-track.mp3 --seconds 34         # 输出 assets/audio/bgm.mp3 + beatgrid.json
+```
+
+循环点落在从检测到的第一拍起算的**整数个小节**上——重复最不容易被听出来的位置，
+接缝正好落在下一个强拍本来就该出现的地方。顺带把模型的前奏和收尾切掉，
+垫乐本来就不需要它们。
+
 包里自带的是一个 120 BPM 的默认网格，够跑通流程。
 没配 `bgm` 时成片是无声的，报告里会写明。
 

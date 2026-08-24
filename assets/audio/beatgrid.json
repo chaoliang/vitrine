@@ -1,9 +1,1 @@
-{
-  "source": "default",
-  "note": "A plain 120 BPM grid so the pipeline runs before you have a track. Derive a real one from your own licensed music: vitrine beatgrid <audio file>",
-  "bpm": 120.0,
-  "period_s": 0.5,
-  "first_beat_s": 0.0,
-  "autocorr_confidence": null,
-  "grid_head": [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
-}
+{"source": "/private/tmp/claude-501/-Users-liliang-claude-4090/7c442051-41d1-4423-8ac7-15b884011676/scratchpad/bgm-quiet-luxury.mp3", "bpm": 83.4, "period_s": 0.7198, "first_beat_s": 0.0, "autocorr_confidence": 0.578, "grid_head": [0.0, 0.72, 1.44, 2.159, 2.879, 3.599, 4.319, 5.039]}

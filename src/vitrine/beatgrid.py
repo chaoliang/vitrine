@@ -90,3 +90,59 @@ def write(ffmpeg: str, src: Path, dst: Path) -> dict:
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(grid, ensure_ascii=False), encoding="utf-8")
     return grid
+
+
+def _duration(ffprobe: str, p: Path) -> float:
+    out = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", str(p)],
+        capture_output=True, text=True, check=True).stdout.strip()
+    return float(out)
+
+
+def bed(ffmpeg: str, ffprobe: str, src: Path, dst: Path, target_s: float,
+        beats_per_bar: int = 4, fade_out_s: float = 1.2) -> dict:
+    """Extend a short track to `target_s` by looping it on a bar boundary.
+
+    Generative music models tend to end a piece when they feel like it -- the
+    local MiniMax Music 3 build tops out around 22 seconds however long you ask
+    for -- so a bed that has to run under a 26-second cut has to be looped. The
+    loop point is placed on a whole number of bars starting from the detected
+    first beat, which is the one place a repeat is least audible: the seam lands
+    exactly where the next downbeat was going to be anyway.
+
+    Trimming to the bar also throws away the model's intro and outro, which is
+    what you want in an underscore.
+    """
+    grid = analyse(ffmpeg, src)
+    period, first = grid["period_s"], grid["first_beat_s"]
+    bar = period * beats_per_bar
+    usable = _duration(ffprobe, src) - first
+    bars = int(usable // bar)
+    if bars < 1:
+        raise SystemExit(
+            f"{src} holds less than one {beats_per_bar}-beat bar after its first "
+            f"beat ({usable:.1f}s < {bar:.1f}s); nothing to loop")
+    body = bar * bars
+    loops = max(1, int(-(-target_s // body)))     # ceil
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    trimmed = dst.with_suffix(".loop.wav")
+    subprocess.run(
+        [ffmpeg, "-y", "-v", "error", "-ss", f"{first:.4f}", "-t", f"{body:.4f}",
+         "-i", str(src), "-c:a", "pcm_s16le", str(trimmed)], check=True)
+    subprocess.run(
+        [ffmpeg, "-y", "-v", "error", "-stream_loop", str(loops - 1),
+         "-i", str(trimmed), "-t", f"{target_s:.3f}",
+         "-af", f"afade=t=out:st={max(0.0, target_s - fade_out_s):.3f}:"
+                f"d={fade_out_s}",
+         "-c:a", "libmp3lame", "-b:a", "320k", str(dst)], check=True)
+    trimmed.unlink(missing_ok=True)
+
+    out_grid = {"source": str(src), "bpm": grid["bpm"], "period_s": period,
+                "first_beat_s": 0.0,
+                "autocorr_confidence": grid["autocorr_confidence"],
+                "grid_head": [round(i * period, 3) for i in range(8)]}
+    return {"bed": str(dst), "seconds": round(_duration(ffprobe, dst), 2),
+            "loop_body_s": round(body, 3), "bars_per_loop": bars,
+            "loops": loops, "grid": out_grid}

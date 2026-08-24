@@ -112,6 +112,19 @@ def cmd_batch(args) -> dict:
     return out
 
 
+def _bed(args) -> dict:
+    """Loop a short track to length and write the matching grid beside it."""
+    st = load(args.backend or "null")
+    out = beatgrid_mod.bed(st.ffmpeg, st.ffprobe, Path(args.audio),
+                           Path(args.out), args.seconds)
+    grid_path = Path(args.grid_out)
+    grid_path.parent.mkdir(parents=True, exist_ok=True)
+    grid_path.write_text(json.dumps(out["grid"], ensure_ascii=False),
+                         encoding="utf-8")
+    out["grid_written_to"] = str(grid_path)
+    return out
+
+
 def cmd_check(args) -> dict:
     """Validate a config without touching a GPU: schema, outfit clash, shots."""
     from .build import plan
@@ -205,6 +218,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--out", default="assets/audio/beatgrid.json")
     p.set_defaults(fn=lambda a: beatgrid_mod.write(
         load(a.backend or "null").ffmpeg, Path(a.audio), Path(a.out)))
+
+    p = sub.add_parser("bed", help="loop a short track up to length on a bar boundary")
+    p.add_argument("audio")
+    p.add_argument("--seconds", type=float, required=True,
+                   help="target length; make it a little longer than the cut")
+    p.add_argument("-o", "--out", default="assets/audio/bgm.mp3")
+    p.add_argument("--grid-out", default="assets/audio/beatgrid.json")
+    p.set_defaults(fn=lambda a: _bed(a))
 
     p = sub.add_parser("check", help="validate a config without a GPU")
     p.add_argument("config")
