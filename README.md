@@ -2,6 +2,13 @@
 
 一个配置文件出一条竖屏带货片。**换商品只改配置，不改代码。**
 
+![一个配置产出的七个镜头](docs/shots.png)
+
+*上图是 `configs/sku-1688-autumn.json` 真实跑出来的成片抽帧：3 件货、7 个镜头、23.62 秒，
+片头的 AIGC 标识是交付关卡烧上去的。*
+
+![配置字段与镜头的对应关系](docs/config-to-shots.png)
+
 ```bash
 pip install -e .
 cp vitrine.example.toml vitrine.toml     # 填你自己的路径
