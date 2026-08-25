@@ -44,6 +44,11 @@ class ShotSpec:
     fps: float
     steps: int
     note: str = ""
+    # Optional camera-movement LoRA. A backend that cannot load LoRAs must say
+    # so rather than dropping it: a shot rendered without the movement it was
+    # written for is not the shot, and the prompt already carries the trigger.
+    lora: str | None = None
+    lora_strength: float = 1.0
 
     @property
     def seconds(self) -> float:
@@ -54,6 +59,7 @@ class ShotSpec:
                 "height": self.height, "frames": self.frames, "fps": self.fps,
                 "seconds": self.seconds, "steps": self.steps, "note": self.note,
                 "refs": [str(r) for r in self.refs],
+                "lora": self.lora, "lora_strength": self.lora_strength,
                 "prompt_chars": len(self.prompt)}
 
 
@@ -73,6 +79,8 @@ class ShotBackend(Protocol):
     name: str
     #: how many reference images this engine actually honours
     ref_slots: int
+    #: whether this engine can load a camera-movement LoRA
+    supports_lora: bool
 
     def render(self, episode: str, shots: Sequence[ShotSpec],
                out_dir: Path) -> list[RenderResult]:
@@ -99,6 +107,26 @@ class BackendError(RuntimeError):
     def __init__(self, shot_id: str, message: str):
         super().__init__(f"{shot_id}: {message}")
         self.shot_id = shot_id
+
+
+def check_lora(backend: ShotBackend, shots: Sequence[ShotSpec]) -> None:
+    """Refuse a job whose camera movement this engine would silently drop.
+
+    Dropping it does not fail -- it renders a fixed-camera take from a prompt
+    that opens with "camera motion, slow push-in". The frame is stable, the
+    file is the right length, and nothing says the movement is missing.
+    """
+    if getattr(backend, "supports_lora", False):
+        return
+    wanted = sorted({s.lora for s in shots if s.lora})
+    if wanted:
+        raise BackendError(
+            "plan",
+            f"{backend.name} cannot load a LoRA, but this config asks for "
+            f"{', '.join(wanted)}. Rendering anyway would produce fixed-camera "
+            f"takes from prompts that open with the movement trigger -- right "
+            f"length, wrong shot. Drop the config's `camera` block, or render "
+            f"on a backend that loads LoRAs.")
 
 
 def check_ref_slots(backend: ShotBackend, shots: Sequence[ShotSpec]) -> None:

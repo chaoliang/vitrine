@@ -31,6 +31,7 @@ MARKER = "vitrine-null-placeholder"
 class NullBackend:
     name = "null"
     ref_slots = 3
+    supports_lora = False
 
     def __init__(self, ffmpeg: str, font: str):
         self.ffmpeg = ffmpeg

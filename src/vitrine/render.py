@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 from .backends import shot_backend
-from .backends.base import ShotSpec, check_ref_slots
+from .backends.base import ShotSpec, check_lora, check_ref_slots
 from .build import shot_for_ending, shots_for_item
 from .schema import Config
 from .settings import Settings
@@ -71,6 +71,7 @@ def render_episode(st: Settings, cfg: Config, only: set[str] | None = None) -> d
                      for s in shots]
         if shots:
             check_ref_slots(backend, shots)
+            check_lora(backend, shots)
             print(f"[render] {item.id}: {len(shots)} take(s), "
                   f"{len(shots[0].refs)} refs"
                   f"{' (+continuity)' if carry else ''}", flush=True)
@@ -90,6 +91,7 @@ def render_episode(st: Settings, cfg: Config, only: set[str] | None = None) -> d
         if only is not None:
             shot = ShotSpec(**{**shot.__dict__, "seed": shot.seed + RETAKE_SEED_OFFSET})
         check_ref_slots(backend, [shot])
+        check_lora(backend, [shot])
         print(f"[render] ending · {cfg.ending.scene}", flush=True)
         for r in backend.render(cfg.episode, [shot], takes):
             log.append({"take": r.shot_id, "seconds": r.seconds_elapsed,

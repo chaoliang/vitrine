@@ -93,6 +93,7 @@ class ComfyH3Backend:
 
     name: str = "comfy_h3"
     ref_slots: int = 3
+    supports_lora: bool = True
 
     # ---- server lifecycle -------------------------------------------------
     @property
@@ -225,12 +226,36 @@ class ComfyH3Backend:
             # measured, not the ComfyUI default: "match" drifts off the identity
             # about 2.6s in, and is slower here despite the tooltip saying otherwise
             "ref_image_size": "max"})
+        if shot.lora:
+            self._insert_lora(wf, shot.lora, shot.lora_strength)
         wf[self._find(wf, "BasicScheduler")]["inputs"]["steps"] = shot.steps
         wf[self._find(wf, "RandomNoise")]["inputs"]["noise_seed"] = shot.seed
         wf[self._find(wf, "CreateVideo")]["inputs"]["fps"] = shot.fps
         wf[self._find(wf, "SaveVideo")]["inputs"]["filename_prefix"] = \
             f"{episode}/{shot.id}"
         return wf
+
+    @classmethod
+    def _insert_lora(cls, wf: dict, lora: str, strength: float) -> str:
+        """Splice a LoraLoaderModelOnly between the UNET and everything using it.
+
+        Rewiring every consumer rather than the two we happen to know about:
+        the guider and the scheduler both take the model today, and a template
+        with a third consumer would otherwise get the LoRA on some paths and
+        not others -- which renders, and renders wrong.
+        """
+        unet = cls._find(wf, "UNETLoader")
+        nid = str(max((int(k) for k in wf if k.isdigit()), default=0) + 1)
+        wf[nid] = {"class_type": "LoraLoaderModelOnly",
+                   "inputs": {"model": [unet, 0], "lora_name": lora,
+                              "strength_model": strength}}
+        for k, node in wf.items():
+            if k == nid:
+                continue
+            for inp, val in node.get("inputs", {}).items():
+                if isinstance(val, list) and len(val) == 2 and val[0] == unet:
+                    node["inputs"][inp] = [nid, val[1]]
+        return nid
 
     # ---- run --------------------------------------------------------------
     def _submit(self, wf: dict) -> str:

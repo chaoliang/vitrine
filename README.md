@@ -135,6 +135,35 @@ vitrine batch  configs/                             # 整个目录一条条跑
 
 ---
 
+## 运镜（可选）
+
+镜头默认是固定机位——产线卖的那个"推近"是在剪辑里切到**原生渲染的特写**做的，
+这条没变。运镜 LoRA 加的是**一条镜头内部**的运动，固定机位拿不到的东西。
+
+配置里加一个 `camera` 块开启，不写就是原来的行为：
+
+```json
+"camera": {
+  "lora": "camera_motion_h3_lora_v1_3000_pruned.safetensors",
+  "strength": 1.0,
+  "moves": {
+    "wide":   "slow push-in with subtle lateral tracking",
+    "detail": "slow push-in to extreme close-up",
+    "ending": "slow smooth orbit then gentle pull-back"
+  }
+}
+```
+
+**触发词必须领头**——`camera motion, <运镜>. ` 会被拼到提示词最前面。
+放在文档中间实测不生效，这是 LoRA README 明说的，也验过。
+
+不给某个 kind 配 move，那类镜头就还是固定机位、也不挂 LoRA。
+
+**不能加载 LoRA 的后端会直接报错**，不会默默渲成固定机位——
+长度对、镜头错，是最难发现的一类失败。
+
+实测（2026-08-25，RTX 4090）：**运镜不额外花时间**，292.0s 带 vs 292.1s 不带。
+
 ## 渲染后端是可换的
 
 `ShotSpec` 只描述任何视频模型都需要的东西——提示词、参考图、尺寸、长度、种子。

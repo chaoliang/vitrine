@@ -56,6 +56,22 @@ def product_still(st: Settings, cfg: Config, item: Item,
     return still if still.is_file() else None
 
 
+def _camera(cfg: Config, kind: str, text: str) -> tuple[str, str | None, float]:
+    """Prefix the camera trigger and move onto a prompt, if this config asks for one.
+
+    The trigger has to lead the prompt -- the LoRA's own README says so and a
+    trial with it mid-document did not engage the movement. The move phrase
+    rides right behind it, which is the shape the LoRA was trained on.
+    """
+    if not cfg.camera:
+        return text, None, 1.0
+    move = cfg.camera.move_for(kind)
+    if not move:
+        return text, None, 1.0
+    return (f"{cfg.camera.trigger}, {move}. {text}",
+            cfg.camera.lora, cfg.camera.strength)
+
+
 def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
                    carry: Path | None, seed: int,
                    require_assets: bool = True) -> list[ShotSpec]:
@@ -72,9 +88,11 @@ def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
     for n, (kind, text) in enumerate((
             ("wide", prompts.wide(cfg, item_for_prompt, wearing, carry=bool(carry))),
             ("detail", prompts.detail(cfg, item_for_prompt, wearing, carry=bool(carry))))):
+        text, lora, strength = _camera(cfg, kind, text)
         out.append(ShotSpec(
             id=f"{item.id}_{kind}", prompt=text, refs=list(refs), seed=seed + n,
             width=W, height=H, frames=LEN, fps=FPS, steps=STEPS,
+            lora=lora, lora_strength=strength,
             note=f"{item.name} · {item.scene} · from {item.enter}"))
     return out
 
@@ -85,8 +103,10 @@ def shot_for_ending(cfg: Config, wearing: str, carry: Path | None,
     refs = [_identity(cfg, require_assets)] + ([carry] if carry else [])
     text = prompts.ending(cfg, wearing, cfg.ending.scene, cfg.ending.action,
                           carry=bool(carry))
+    text, lora, strength = _camera(cfg, "ending", text)
     return ShotSpec(id="ending", prompt=text, refs=refs, seed=seed,
                     width=W, height=H, frames=LEN, fps=FPS, steps=STEPS,
+                    lora=lora, lora_strength=strength,
                     note=f"closing take · {cfg.ending.scene}")
 
 

@@ -96,6 +96,44 @@ class Item:
 
 
 @dataclass
+class Camera:
+    """Optional camera-movement LoRA and the move each kind of shot gets.
+
+    Off by default. The pipeline's shots are fixed-camera, and the push-in it
+    sells is done in the cut by cutting to a natively rendered detail take --
+    that stays true, this is not a replacement for it. What a camera LoRA adds
+    is movement *inside* a take, which a fixed frame cannot have.
+
+    Measured on 2026-08-25: the move costs nothing (292.0s with the LoRA vs
+    292.1s without), and the trigger word has to lead the prompt or the LoRA
+    does not engage.
+    """
+
+    lora: str                       # file name under ComfyUI models/loras
+    strength: float = 1.0           # the LoRA's own README: 0.8 gentle, 1.0 clear, >1.2 unstable
+    trigger: str = "camera motion"  # must lead the prompt
+    moves: dict = field(default_factory=dict)   # wide / detail / ending -> move phrase
+
+    KINDS = ("wide", "detail", "ending")
+
+    def validate(self) -> None:
+        if not self.lora.strip():
+            raise ValueError("camera.lora is empty; drop the camera block to disable it")
+        if not 0.0 < self.strength <= 1.5:
+            raise ValueError(
+                f"camera.strength {self.strength} is outside 0-1.5; the LoRA's own "
+                f"guidance is 0.8-1.0 and above 1.2 the frame stops being stable")
+        unknown = set(self.moves) - set(self.KINDS)
+        if unknown:
+            raise ValueError(
+                f"camera.moves has unknown shot kinds {sorted(unknown)}; "
+                f"use any of {list(self.KINDS)}")
+
+    def move_for(self, kind: str) -> str | None:
+        return (self.moves.get(kind) or "").strip() or None
+
+
+@dataclass
 class Ending:
     """The closing take. Set to null in the config to end on the last product."""
     scene: str
@@ -124,6 +162,8 @@ class Config:
     # neighbouring shot silently replaces a take that was already signed off.
     pin: dict = field(default_factory=dict)
     min_duration_s: float = 0.0
+    # Absent means fixed camera, which is what every episode shipped so far used.
+    camera: Camera | None = None
 
     @staticmethod
     def load(path: str | Path, as_catalogue: bool = False) -> "Config":
@@ -141,6 +181,7 @@ class Config:
             model_ref=d["model_ref"], identity=d["identity"],
             scenes=d["scenes"], items=[Item(**i) for i in d["items"]],
             ending=Ending(**d["ending"]) if d.get("ending") else None,
+            camera=Camera(**d["camera"]) if d.get("camera") else None,
             style=d.get("style", "mature-quiet-luxury"),
             overlays=d.get("overlays", "none"),
             asset_dir=str(Path(d.get("asset_dir", "")).expanduser()),
@@ -154,6 +195,8 @@ class Config:
             raise ValueError(f"unknown overlays mode {cfg.overlays!r}")
         for it in cfg.items:
             it.validate(cfg.scenes)
+        if cfg.camera:
+            cfg.camera.validate()
         if not as_catalogue:
             cfg.check_outfit()
         if cfg.ending and cfg.ending.scene not in cfg.scenes:
@@ -170,6 +213,11 @@ class Config:
              "items": [asdict(i) for i in self.items]}
         if self.ending:
             d["ending"] = asdict(self.ending)
+        if self.camera:
+            # Must round-trip: `split` rebuilds configs through here, and a
+            # camera block dropped on the way out is movement the split videos
+            # silently lose.
+            d["camera"] = asdict(self.camera)
         return d
 
     def check_outfit(self) -> None:
