@@ -161,6 +161,48 @@ def cmd_check(args) -> dict:
             "plan": [s.to_json() for s in shots]}
 
 
+def cmd_split(args) -> dict:
+    """One catalogue -> one config per outfit.
+
+    Reads the config as a catalogue, so a list that contains both a midi skirt
+    and a knee-high boot is accepted rather than rejected -- separating them is
+    the job. Writes nothing under --dry-run, because the grouping is a styling
+    decision worth reading before it becomes files.
+    """
+    from . import looks
+    cfg = Config.load(args.config, as_catalogue=True)
+    groups = looks.assemble(cfg.items, args.max_items)
+    out_dir = Path(args.out or Path(args.config).parent)
+
+    plan, written = [], []
+    for n, (group, row) in enumerate(zip(groups, looks.describe(groups)), 1):
+        episode = f"{cfg.episode}-{n:02d}"
+        row["episode"] = episode
+        # a config whose content cannot reach its own floor would fail in the
+        # editor after the render; say so here instead
+        row["clears_min_duration"] = (cfg.min_duration_s <= 0
+                                      or row["estimated_seconds"] >= cfg.min_duration_s)
+        plan.append(row)
+        if args.dry_run:
+            continue
+        piece = cfg.to_json()
+        piece["episode"] = episode
+        piece["items"] = [i for i in piece["items"]
+                          if i["id"] in {g.id for g in group}]
+        piece["items"].sort(key=lambda i: [g.id for g in group].index(i["id"]))
+        piece["pin"] = {}          # takes were pinned for the catalogue, not for this cut
+        path = out_dir / f"{episode}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(piece, ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+        Config.load(path)          # each piece must stand on its own
+        written.append(str(path))
+
+    return {"catalogue": cfg.episode, "products": len(cfg.items),
+            "videos": len(groups), "written": written,
+            "dry_run": bool(args.dry_run), "plan": plan}
+
+
 def cmd_doctor(args) -> dict:
     st = load(args.backend)
     checks = {
@@ -259,6 +301,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("check", help="validate a config without a GPU")
     p.add_argument("config")
     p.set_defaults(fn=cmd_check)
+
+    p = sub.add_parser("split", help="one catalogue -> one config per outfit")
+    p.add_argument("config")
+    p.add_argument("--out", help="where to write the pieces (default: alongside)")
+    p.add_argument("--max-items", type=int, default=4,
+                   help="items per video; four is 33 s (default: 4)")
+    p.add_argument("--dry-run", action="store_true", help="show the grouping only")
+    p.set_defaults(fn=cmd_split)
 
     p = sub.add_parser("doctor", help="what is configured and what is missing")
     p.set_defaults(fn=cmd_doctor)

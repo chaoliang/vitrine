@@ -12,6 +12,7 @@ dependencies = ["pillow>=10.0"]
 
 [project.optional-dependencies]
 beatgrid = ["numpy>=1.24"]
+dev = ["pytest>=8.0"]
 local = ["torch", "diffusers", "transformers", "accelerate"]
 
 [project.scripts]

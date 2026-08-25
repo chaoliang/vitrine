@@ -15,7 +15,7 @@ because both were learned by getting them wrong:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import compat
@@ -126,7 +126,15 @@ class Config:
     min_duration_s: float = 0.0
 
     @staticmethod
-    def load(path: str | Path) -> "Config":
+    def load(path: str | Path, as_catalogue: bool = False) -> "Config":
+        """Read a config. `as_catalogue` skips the outfit check only.
+
+        The clash rule is an invariant of one *video*, not of a list of products:
+        a catalogue is expected to contain a midi skirt and a knee-high boot, and
+        resolving that by putting them in different videos is exactly what
+        `vitrine split` is for. Refusing to load its own input would make the
+        command impossible to use on the catalogues that need it most.
+        """
         d = json.loads(Path(path).read_text(encoding="utf-8"))
         cfg = Config(
             episode=d["episode"], series=d["series"], cta=d["cta"],
@@ -146,10 +154,23 @@ class Config:
             raise ValueError(f"unknown overlays mode {cfg.overlays!r}")
         for it in cfg.items:
             it.validate(cfg.scenes)
-        cfg.check_outfit()
+        if not as_catalogue:
+            cfg.check_outfit()
         if cfg.ending and cfg.ending.scene not in cfg.scenes:
             raise ValueError(f"ending scene {cfg.ending.scene!r} not defined")
         return cfg
+
+    def to_json(self) -> dict:
+        """Round-trips through `load`: every field the loader reads, and no more."""
+        d = {"episode": self.episode, "series": self.series, "cta": self.cta,
+             "model_ref": self.model_ref, "identity": self.identity,
+             "scenes": self.scenes, "style": self.style,
+             "overlays": self.overlays, "asset_dir": self.asset_dir,
+             "pin": self.pin, "min_duration_s": self.min_duration_s,
+             "items": [asdict(i) for i in self.items]}
+        if self.ending:
+            d["ending"] = asdict(self.ending)
+        return d
 
     def check_outfit(self) -> None:
         """Every hem in the outfit against every footwear shaft worn with it."""
