@@ -90,8 +90,15 @@ def chips_png(st: Settings, cfg: Config, n: int, cta: bool, path: Path) -> Path:
         d.rounded_rectangle([px, y, px + pw + 32, y + 70], radius=10, fill=AMBER)
         d.text((px + 16, y + 13), it.price, font=f_price, fill=(24, 20, 16, 255))
         y += 86
-    if cta:
-        d.text((64, H - 196), cfg.cta, font=f_cta, fill=AMBER)
+    if cta and cfg.cta:
+        # The CTA used to be bare amber text. On a cream knit it was invisible --
+        # every other element on this overlay sits on a plate, and the one line
+        # that asks for the click was the one without one.
+        cw = d.textlength(cfg.cta, font=f_cta)
+        cy = H - 200
+        d.rounded_rectangle([64, cy, 64 + cw + 52, cy + 68], radius=10,
+                            fill=(0, 0, 0, 196))
+        d.text((90, cy + 13), cfg.cta, font=f_cta, fill=AMBER)
     img.save(path)
     return path
 
@@ -263,7 +270,13 @@ def cut(st: Settings, cfg: Config) -> dict:
         src = find(st, cfg, "ending")
         sources.append(src)
         d = cfg.ending.beats * beat
-        pieces.append(seg(st, src, 0.30, d, None, work / "zz_end.mp4"))
+        # The closing take is the whole look on the body and the longest single
+        # shot in the cut -- it is where a viewer decides. Leaving it bare meant
+        # the price list and the CTA vanished for the final four seconds.
+        end_chips = (chips_png(st, cfg, len(cfg.items), cta=True,
+                               path=work / "chips_end.png") if want_chips else None)
+        pieces.append(seg(st, src, 0.30, d, end_chips, work / "zz_end.mp4",
+                          fade_in=0.20))
         ledger.append({"item": "ending", "kind": "ending",
                        "scene": cfg.ending.scene, "dur": round(d, 3)})
 
