@@ -12,12 +12,18 @@ behaviour that mattered is kept exactly:
 * ``ref_image_size`` stays ``"max"``. It was measured, not guessed: anything
   smaller loses the product's proportions between the wide and the detail take.
 
-The workflow template is a ComfyUI *API-format* graph. Node ids are positional
-in that file and are named here in one place, so a template change is one edit.
+The workflow template is a ComfyUI *API-format* graph, shipped with the package
+at ``assets/workflows/h3_ref2va.api.json``. It wires all three reference slots
+and leaves every per-shot field at a visible placeholder, so the shape of a run
+is readable from the JSON. Node ids are *discovered* by class type rather than
+written here as literals -- the previous version hardcoded "19" and "21", which
+quietly bound the whole pipeline to one exported file from an unrelated
+experiment.
 """
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import threading
@@ -30,13 +36,10 @@ from typing import Sequence
 
 from .base import BackendError, RenderResult, ShotSpec
 
-# node ids inside the API-format template
-N_REF0 = "100"        # LoadImage for the identity still
-N_SAMPLER_IN = "19"   # prompt / size / length / ref_image_size
-N_STEPS = "20"
-N_SEED = "21"
-N_FPS = "27"
-N_SAVE = "28"
+# The hub node. Everything else is found from it or by class, so a template
+# with different node numbering still works.
+HUB = "MiniMaxH3ReferenceToVideo"
+REF_INPUT = re.compile(r"ref_images\.ref_image_(\d+)$")
 
 STARTUP_TIMEOUT_S = 600
 RUN_TIMEOUT_S = 3600
@@ -147,6 +150,32 @@ class ComfyH3Backend:
         raise BackendError("server", f"ComfyUI not ready in {STARTUP_TIMEOUT_S}s")
 
     # ---- graph ------------------------------------------------------------
+    @staticmethod
+    def _find(wf: dict, class_type: str) -> str:
+        """The one node of this class. Node ids are discovered, never assumed.
+
+        The pipeline used to name ids as string literals -- "19" for the hub,
+        "21" for the seed -- which silently bound it to one exported file. Any
+        H3 graph with these node types works now, whoever exported it.
+        """
+        hits = [k for k, v in wf.items() if v.get("class_type") == class_type]
+        if len(hits) != 1:
+            raise BackendError(
+                "template",
+                f"expected exactly one {class_type} node, found {len(hits)}"
+                + (f" ({', '.join(hits)})" if hits else ""))
+        return hits[0]
+
+    @classmethod
+    def _ref_slots(cls, wf: dict, hub: str) -> list[tuple[int, str]]:
+        """(slot index, LoadImage node id) for every reference wired into the hub."""
+        out = []
+        for key, val in wf[hub]["inputs"].items():
+            m = REF_INPUT.match(key)
+            if m and isinstance(val, list):
+                out.append((int(m.group(1)), val[0]))
+        return sorted(out)
+
     def stage_refs(self, episode: str, refs: Sequence[Path]) -> list[str]:
         """Copy references into ComfyUI's input tree and return its own paths."""
         dst_dir = self.comfy_root / "ComfyUI" / "input" / episode
@@ -160,19 +189,47 @@ class ComfyH3Backend:
         return out
 
     def build_graph(self, episode: str, shot: ShotSpec, staged: list[str]) -> dict:
+        """Fill the template's variable fields for one shot.
+
+        The template ships with all three reference slots wired and every
+        per-shot field left at an obvious placeholder, so the shape of the graph
+        is readable from the JSON instead of having to be reconstructed from
+        this method. What happens here is filling and pruning, not building.
+
+        Pruning matters: a shot with two references must not leave a third
+        LoadImage pointing at a file that was never staged. ComfyUI would reject
+        the whole prompt for a missing input, and the error would name the image
+        rather than the real cause.
+        """
         wf = json.loads(self.workflow_template.read_text(encoding="utf-8"))
-        wf[N_REF0]["inputs"]["image"] = staged[0]
-        for j, rel in enumerate(staged[1:], start=1):
-            nid = str(int(N_REF0) + j)
-            wf[nid] = {"class_type": "LoadImage", "inputs": {"image": rel}}
-            wf[N_SAMPLER_IN]["inputs"][f"ref_images.ref_image_{j}"] = [nid, 0]
-        wf[N_SAMPLER_IN]["inputs"].update({
+        hub = self._find(wf, HUB)
+        slots = self._ref_slots(wf, hub)
+
+        # grow the template if this shot carries more references than it wires
+        while len(slots) < len(staged):
+            idx = len(slots)
+            nid = str(max((int(k) for k in wf if k.isdigit()), default=0) + 1)
+            wf[nid] = {"class_type": "LoadImage", "inputs": {"image": ""}}
+            wf[hub]["inputs"][f"ref_images.ref_image_{idx}"] = [nid, 0]
+            slots.append((idx, nid))
+
+        for (_, nid), rel in zip(slots, staged):
+            wf[nid]["inputs"]["image"] = rel
+        for idx, nid in slots[len(staged):]:
+            del wf[hub]["inputs"][f"ref_images.ref_image_{idx}"]
+            wf.pop(nid, None)
+
+        wf[hub]["inputs"].update({
             "prompt": shot.prompt, "width": shot.width, "height": shot.height,
-            "length": shot.frames, "ref_image_size": "max"})
-        wf[N_STEPS]["inputs"]["steps"] = shot.steps
-        wf[N_SEED]["inputs"]["noise_seed"] = shot.seed
-        wf[N_FPS]["inputs"]["fps"] = shot.fps
-        wf[N_SAVE]["inputs"]["filename_prefix"] = f"{episode}/{shot.id}"
+            "length": shot.frames,
+            # measured, not the ComfyUI default: "match" drifts off the identity
+            # about 2.6s in, and is slower here despite the tooltip saying otherwise
+            "ref_image_size": "max"})
+        wf[self._find(wf, "BasicScheduler")]["inputs"]["steps"] = shot.steps
+        wf[self._find(wf, "RandomNoise")]["inputs"]["noise_seed"] = shot.seed
+        wf[self._find(wf, "CreateVideo")]["inputs"]["fps"] = shot.fps
+        wf[self._find(wf, "SaveVideo")]["inputs"]["filename_prefix"] = \
+            f"{episode}/{shot.id}"
         return wf
 
     # ---- run --------------------------------------------------------------

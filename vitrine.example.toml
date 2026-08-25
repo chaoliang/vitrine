@@ -26,7 +26,10 @@ jobs_dir = "~/vitrine-jobs"
 # "null"     writes labelled placeholder takes: for wiring tests, never delivery.
 backend = "null"
 
-# Only needed by comfy_h3:
+# Only needed by comfy_h3. workflow_template defaults to the graph shipped at
+# assets/workflows/h3_ref2va.api.json -- set it only to use your own export.
+# Any API-format H3 graph works: node ids are discovered by class type, not
+# assumed, so your numbering does not have to match.
 # comfy_root        = "E:/AI-Workspace/apps/ComfyUI-H3"
-# workflow_template = "E:/AI-Workspace/templates/h3_ref2va.api.json"
+# workflow_template = "path/to/your-own.api.json"
 # still_model       = "E:/AI-Workspace/models/huggingface/flux2-klein-4b"

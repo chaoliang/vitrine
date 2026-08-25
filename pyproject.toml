@@ -20,3 +20,7 @@ vitrine = "vitrine.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vitrine"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = ["unit: no GPU, no network, no ComfyUI"]

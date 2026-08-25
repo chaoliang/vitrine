@@ -180,7 +180,9 @@ def load(backend_override: str | None = None) -> Settings:
 
     comfy_root = _get("comfy_root", t)
     comfy_root = Path(str(comfy_root)).expanduser() if comfy_root else None
-    tmpl = _get("workflow_template", t)
+    # The H3 graph ships with the package; a user template overrides it.
+    tmpl = _get("workflow_template", t) or (
+        PROJECT_ROOT / "assets" / "workflows" / "h3_ref2va.api.json")
     still_model = _get("still_model", t)
     return Settings(
         jobs_dir=jobs_dir, ffmpeg=ffmpeg, ffprobe=ffprobe,
