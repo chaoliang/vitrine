@@ -18,6 +18,8 @@ still backend only when a config has items without supplied photographs.
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, Sequence, runtime_checkable
@@ -127,6 +129,36 @@ def check_lora(backend: ShotBackend, shots: Sequence[ShotSpec]) -> None:
             f"takes from prompts that open with the movement trigger -- right "
             f"length, wrong shot. Drop the config's `camera` block, or render "
             f"on a backend that loads LoRAs.")
+
+
+PICTURE = re.compile(r"<Picture (\d+)>")
+
+
+def check_picture_refs(shots: Sequence[ShotSpec]) -> None:
+    """Refuse a prompt whose ``<Picture N>`` citations disagree with what is staged.
+
+    The prompt binds each subject to a numbered reference image, and the numbers
+    shift per shot because unused slots are pruned. Two ways that goes wrong and
+    both are silent: cite a picture that was never staged and the model resolves
+    the subject from text alone, or leave a staged picture unnamed and it decides
+    for itself what that image is for. Neither raises anything at render time --
+    you get a take of the right length showing the wrong object, forty minutes
+    later. So the citations must be exactly 1..len(refs), and this is checked
+    before the card is touched.
+    """
+    for s in shots:
+        cited = {int(n) for n in PICTURE.findall(s.prompt)}
+        if not cited:
+            continue          # a prompt that cites nothing makes no claim to break
+        expected = set(range(1, len(s.refs) + 1))
+        if cited != expected:
+            raise BackendError(
+                s.id,
+                f"prompt cites {sorted(cited) or 'no'} picture(s) but "
+                f"{len(s.refs)} reference image(s) are staged. Expected "
+                f"{sorted(expected)}. A citation with no image behind it is "
+                f"resolved from text; an image with no citation is resolved by "
+                f"guesswork. Both render successfully and both are wrong.")
 
 
 def check_ref_slots(backend: ShotBackend, shots: Sequence[ShotSpec]) -> None:

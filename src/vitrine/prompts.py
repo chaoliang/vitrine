@@ -47,8 +47,27 @@ def _neg(style) -> str:
     return f"{NEG_BASE} For this style: {style.forbid}." if style.forbid else NEG_BASE
 
 
+def pictures(has_product: bool, carry: bool) -> dict[str, int]:
+    """Which staged reference image is which ``<Picture N>``.
+
+    build.py stages ``[identity] + [product?] + [carry?]`` and the backend prunes
+    the slots it does not use, so the numbering shifts from shot to shot: the
+    continuity frame is Picture 3 behind a packshot and Picture 2 without one.
+    Naming a subject without naming its picture leaves the model to guess which
+    photograph is the product and which is last shot's final frame -- and it
+    guesses differently in the wide take than in the detail take, which is how
+    two takes of one necklace end up disagreeing about it.
+    """
+    pics = {"identity": 1}
+    if has_product:
+        pics["product"] = len(pics) + 1
+    if carry:
+        pics["carry"] = len(pics) + 1
+    return pics
+
+
 def _shell(identity: str, summary: str, scene: str, shot: str,
-           product: str = "", n_refs: int = 0, carry: bool = False,
+           product: str = "", has_product: bool = False, carry: bool = False,
            style=None) -> str:
     """`product` names the SKU when the config supplies real photographs of it.
 
@@ -57,7 +76,14 @@ def _shell(identity: str, summary: str, scene: str, shot: str,
     fully_preserved and the prompt forbids redesigning it. Without photos the
     model is free to design from the text, which is fine for a mock-up and
     useless for a catalogue.
+
+    Exactly one photograph of the product is ever staged, whatever the config
+    lists -- ``product_still`` picks the first. An earlier version told the model
+    there were ``len(item.refs)`` reference frames of it, so a config carrying
+    three factory photos promised three and delivered one. A prompt that cites
+    pictures which are not there is the same defect as one that cites none.
     """
+    pics = pictures(has_product, carry)
     subj2 = ""
     ret2 = ""
     subj3 = ""
@@ -66,33 +92,32 @@ def _shell(identity: str, summary: str, scene: str, shot: str,
         # A frame lifted from the previously accepted take. It is the only thing
         # that carries the accumulated outfit through a set change, because H3
         # keeps no state between calls.
-        subj3 = ("\n<Subject 3> is the continuity frame provided with this "
-                 "generation: it shows <Subject 1> wearing everything she has "
-                 "already put on. Every garment and accessory visible on her in "
-                 "that frame must appear on her here at the same size, colour, "
-                 "cut and position on her body. Its background, its set and its "
-                 "lighting are not retained -- only what she is wearing.")
-        ret3 = ("\n<Subject 3>: partially_preserved -- the clothing and "
-                "accessories she already wears are carried over exactly; the "
-                "background and lighting of that frame are not.")
-    if product and n_refs:
-        frames = ("the reference frame" if n_refs == 1
-                  else f"the {n_refs} reference frames")
+        subj3 = (f"\n<Subject {len(pics)}> is the continuity frame shown in "
+                 f"<Picture {pics['carry']}>: it shows <Subject 1> wearing everything she has "
+                 f"already put on. Every garment and accessory visible on her in "
+                 f"that frame must appear on her here at the same size, colour, "
+                 f"cut and position on her body. Its background, its set and its "
+                 f"lighting are not retained -- only what she is wearing.")
+        ret3 = (f"\n<Subject {len(pics)}>: partially_preserved -- the clothing and "
+                f"accessories she already wears are carried over exactly; the "
+                f"background and lighting of that frame are not.")
+    if product and has_product:
         subj2 = (f"\n<Subject 2> is {product}, exactly as photographed in "
-                 f"{frames} provided with this generation. Its cut, colour, "
+                 f"<Picture {pics['product']}>. Its cut, colour, "
                  f"texture, closures, hardware, stitching and proportions must "
-                 f"match those photographs exactly and must never be "
+                 f"match that photograph exactly and must never be "
                  f"redesigned, restyled or substituted.")
         ret2 = ("\n<Subject 2>: fully_preserved -- the product is reproduced "
                 "exactly as photographed and is not redesigned.")
     return f"""subject_definitions:
-<Subject 1> is {identity} {style.performance()} The garment shown in the identity reference image is wardrobe only and is not preserved.{subj2}{subj3}
+{len(pics)} reference image{'' if len(pics) == 1 else 's'} accompany this generation, numbered <Picture 1>{f" to <Picture {len(pics)}>" if len(pics) > 1 else ""}. No other picture exists.
+<Subject 1> is the woman shown in <Picture {pics['identity']}>: {identity} {style.performance()} The garment shown in <Picture {pics['identity']}> is wardrobe only and is not preserved.{subj2}{subj3}
 
 summary:
 [reference generation] {summary}
 
 retention_analysis:
-<Subject 1>: partially_preserved -- face, hair, skin tone and body proportions are fully retained; her expression, gaze, posture and movement amplitude are explicitly not constrained; the garment shown in the identity reference is not retained.{ret2}{ret3}
+<Subject 1>: partially_preserved -- face, hair, skin tone and body proportions are fully retained; her expression, gaze, posture and movement amplitude are explicitly not constrained; the garment shown in <Picture {pics['identity']}> is not retained.{ret2}{ret3}
 
 detailed_description:
 {scene} {style.light} {style.palette} {CAMERA}
@@ -139,7 +164,8 @@ def wide(cfg, item, wearing: str, carry: bool = False) -> str:
         f"off the same edge of frame they entered from. "
         f"From 4.400 to 5.167 {item.action or style.closing}, "
         f"the set unchanged from the first frame.",
-        product=item.garment, n_refs=len(item.refs), carry=carry, style=style)
+        product=item.garment, has_product=bool(item.refs), carry=carry,
+        style=style)
 
 
 def ending(cfg, wearing: str, scene: str, action: str, carry: bool = False) -> str:
@@ -194,4 +220,5 @@ def detail(cfg, item, wearing: str, carry: bool = False) -> str:
         f"key light again. "
         f"From 4.300 to 5.167 the piece holds still and perfectly framed, the "
         f"background quiet and out of focus behind it.",
-        product=item.garment, n_refs=len(item.refs), carry=carry, style=style)
+        product=item.garment, has_product=bool(item.refs), carry=carry,
+        style=style)

@@ -79,9 +79,17 @@ def shots_for_item(st: Settings, cfg: Config, item: Item, wearing: str,
     product = product_still(st, cfg, item, require_assets)
     refs = [_identity(cfg, require_assets)] + [p for p in (product, carry) if p]
 
+    # The prompt must describe what was actually staged, not what the config
+    # hoped for. Those differ in both directions: a generated packshot is a real
+    # photograph the config never listed, and `check` runs with require_assets
+    # False, so it reaches here with refs listed and no file behind them. Left
+    # alone, the prompt would name a <Subject 2> and cite a <Picture 2> that the
+    # backend never staged.
     item_for_prompt = item
-    if product is not None and not item.refs:
-        # the generated packshot counts as a supplied photograph for the prompt
+    if product is None:
+        if item.refs:
+            item_for_prompt = Item(**{**item.__dict__, "refs": []})
+    elif not item.refs:
         item_for_prompt = Item(**{**item.__dict__, "refs": ["__bible__"]})
 
     out = []
